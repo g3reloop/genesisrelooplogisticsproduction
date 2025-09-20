@@ -4,11 +4,10 @@ const urlsToCache = [
   '/',
   '/static/js/bundle.js',
   '/static/css/main.css',
-  '/manifest.json',
-  '/favicon.ico',
+  '/manifest.json'
 ];
 
-// Install event
+// Install event - cache resources
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -19,7 +18,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Fetch event
+// Fetch event - serve from cache when offline
 self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request)
@@ -31,7 +30,7 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Activate event
+// Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -47,12 +46,19 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Push notification event
+// Background sync for offline job updates
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'background-sync') {
+    event.waitUntil(doBackgroundSync());
+  }
+});
+
+// Push notification handling
 self.addEventListener('push', (event) => {
   const options = {
-    body: event.data ? event.data.text() : 'You have a new notification',
-    icon: '/icon-192x192.png',
-    badge: '/badge-72x72.png',
+    body: event.data ? event.data.text() : 'New notification from Genesis Reloop',
+    icon: '/pwa-192x192.png',
+    badge: '/pwa-192x192.png',
     vibrate: [100, 50, 100],
     data: {
       dateOfArrival: Date.now(),
@@ -62,22 +68,22 @@ self.addEventListener('push', (event) => {
       {
         action: 'explore',
         title: 'View Details',
-        icon: '/icon-192x192.png'
+        icon: '/pwa-192x192.png'
       },
       {
         action: 'close',
         title: 'Close',
-        icon: '/icon-192x192.png'
+        icon: '/pwa-192x192.png'
       }
     ]
   };
 
   event.waitUntil(
-    self.registration.showNotification('Genesis Reloop', options)
+    self.registration.showNotification('Genesis Reloop Logistics', options)
   );
 });
 
-// Notification click event
+// Notification click handling
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
@@ -88,28 +94,33 @@ self.addEventListener('notificationclick', (event) => {
   }
 });
 
-// Background sync for offline data
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'background-sync') {
-    event.waitUntil(doBackgroundSync());
-  }
-});
-
+// Background sync function
 async function doBackgroundSync() {
-  // Sync offline data when connection is restored
   try {
-    const cache = await caches.open('offline-data');
-    const requests = await cache.keys();
+    // Sync offline data when connection is restored
+    console.log('Performing background sync...');
     
-    for (const request of requests) {
-      try {
-        await fetch(request);
-        await cache.delete(request);
-      } catch (error) {
-        console.log('Failed to sync:', request.url);
-      }
+    // Get offline job updates from IndexedDB
+    const offlineUpdates = await getOfflineUpdates();
+    
+    // Send updates to server
+    for (const update of offlineUpdates) {
+      await sendUpdateToServer(update);
     }
+    
+    console.log('Background sync completed');
   } catch (error) {
-    console.log('Background sync failed:', error);
+    console.error('Background sync failed:', error);
   }
+}
+
+// Helper functions
+async function getOfflineUpdates() {
+  // In a real implementation, this would read from IndexedDB
+  return [];
+}
+
+async function sendUpdateToServer(update) {
+  // In a real implementation, this would send the update to the server
+  console.log('Sending update to server:', update);
 }

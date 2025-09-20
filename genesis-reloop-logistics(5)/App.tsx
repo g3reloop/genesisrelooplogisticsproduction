@@ -10,6 +10,7 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import DashboardPage from './pages/DashboardPage';
 import OnboardingPage from './pages/OnboardingPage';
+import EnhancedOnboardingPage from './pages/EnhancedOnboardingPage';
 import JobsPage from './pages/JobsPage';
 import JobDetailsPage from './pages/JobDetailsPage';
 import ActiveJobPage from './pages/ActiveJobPage';
@@ -17,6 +18,9 @@ import EarningsPage from './pages/EarningsPage';
 import HistoryPage from './pages/HistoryPage';
 import ProfilePage from './pages/ProfilePage';
 import SettingsPage from './pages/SettingsPage';
+import AdminDashboard from './pages/AdminDashboard';
+import BuyerDashboard from './pages/BuyerDashboard';
+import MobileJobsPage from './pages/MobileJobsPage';
 
 const App: React.FC = () => {
   return (
@@ -38,17 +42,20 @@ const Main: React.FC = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           
-          <Route element={<ProtectedRoute />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/jobs" element={<JobsPage />} />
-              <Route path="/jobs/:id" element={<JobDetailsPage />} />
-              {/* Fix: Changed route from "/active-job/:id" to "/active-job" as the component uses context, not a URL parameter. */}
-              <Route path="/active-job" element={<ActiveJobPage />} />
-              <Route path="/earnings" element={<EarningsPage />} />
-              <Route path="/history" element={<HistoryPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-          </Route>
+                  <Route element={<ProtectedRoute />}>
+                      <Route path="/dashboard" element={<DashboardPage />} />
+                      <Route path="/admin" element={<AdminDashboard />} />
+                      <Route path="/buyer" element={<BuyerDashboard />} />
+                      <Route path="/jobs" element={<JobsPage />} />
+                      <Route path="/mobile-jobs" element={<MobileJobsPage />} />
+                      <Route path="/jobs/:id" element={<JobDetailsPage />} />
+                      {/* Fix: Changed route from "/active-job/:id" to "/active-job" as the component uses context, not a URL parameter. */}
+                      <Route path="/active-job" element={<ActiveJobPage />} />
+                      <Route path="/earnings" element={<EarningsPage />} />
+                      <Route path="/history" element={<HistoryPage />} />
+                      <Route path="/profile" element={<ProfilePage />} />
+                      <Route path="/settings" element={<SettingsPage />} />
+                  </Route>
 
           <Route element={<OnboardingGuard/>}>
             <Route path="/onboarding" element={<OnboardingPage />} />

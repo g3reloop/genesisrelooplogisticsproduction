@@ -1,467 +1,571 @@
 import { supabase } from '../lib/supabase';
-import { GenesisPoints, Job, User } from '../types';
+import { GenesisPoints, Job, User, UserRole, JobStatus } from '../types';
 
-class GenesisPointsService {
-  private pointsPerLitre: number = 2;
-  private bonusMultipliers: Record<string, number> = {
-    'quality_bonus': 1.2,
-    'speed_bonus': 1.1,
-    'volume_bonus': 1.15,
-    'referral_bonus': 1.0,
-    'loyalty_bonus': 1.05,
+interface PointsCalculation {
+  basePoints: number;
+  multipliers: {
+    volume: number;
+    quality: number;
+    efficiency: number;
+    loyalty: number;
+    special: number;
   };
+  totalPoints: number;
+  reasons: string[];
+}
 
-  // Calculate Genesis Points for a job
-  calculateJobPoints(
-    job: Job,
-    qualityScore: number = 1.0,
-    speedScore: number = 1.0,
-    volumeScore: number = 1.0
-  ): number {
-    const basePoints = job.volume * this.pointsPerLitre;
-    
-    // Apply quality multiplier
-    const qualityMultiplier = Math.min(qualityScore, 1.5); // Cap at 1.5x
-    
-    // Apply speed multiplier
-    const speedMultiplier = Math.min(speedScore, 1.3); // Cap at 1.3x
-    
-    // Apply volume multiplier for large jobs
-    const volumeMultiplier = job.volume > 100 ? this.bonusMultipliers.volume_bonus : 1.0;
-    
-    // Calculate final points
-    const finalPoints = Math.round(
-      basePoints * qualityMultiplier * speedMultiplier * volumeMultiplier
-    );
-    
-    return finalPoints;
-  }
+interface ProfitShare {
+  totalProfit: number;
+  driverShare: number;
+  platformShare: number;
+  reserveFund: number;
+  distribution: {
+    [driverId: string]: {
+      points: number;
+      share: number;
+      amount: number;
+    };
+  };
+}
 
-  // Award Genesis Points for job completion
-  async awardJobPoints(
-    userId: string,
-    jobId: string,
-    points: number,
-    description: string = 'Job completion'
-  ): Promise<GenesisPoints> {
+export const genesisPointsService = {
+  // Calculate Genesis Points for a completed job
+  calculateJobPoints: async (jobId: string, driverId: string): Promise<PointsCalculation> => {
     try {
-      const { data, error } = await supabase
-        .from('genesis_points')
-        .insert({
-          user_id: userId,
-          job_id: jobId,
-          points,
-          points_type: 'JOB_COMPLETION',
-          description,
-          multiplier: 1.0,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        throw new Error(error.message);
+      const job = await getJobById(jobId);
+      const driver = await getUserById(driverId);
+      
+      if (!job || !driver) {
+        throw new Error('Job or driver not found');
       }
 
-      // Update user's total Genesis Points
-      await this.updateUserTotalPoints(userId);
-
-      return data;
-    } catch (error: any) {
-      throw new Error(`Failed to award Genesis Points: ${error.message}`);
+      const calculation = await performPointsCalculation(job, driver);
+      
+      // Store the points in the database
+      await storeGenesisPoints(driverId, jobId, calculation);
+      
+      return calculation;
+    } catch (error) {
+      console.error('Error calculating Genesis Points:', error);
+      throw error;
     }
-  }
+  },
 
-  // Award bonus points
-  async awardBonusPoints(
-    userId: string,
-    points: number,
-    bonusType: string,
-    description: string,
-    jobId?: string
-  ): Promise<GenesisPoints> {
+  // Distribute profit shares based on Genesis Points
+  distributeProfitShares: async (period: 'monthly' | 'quarterly' | 'yearly'): Promise<ProfitShare> => {
     try {
-      const multiplier = this.bonusMultipliers[bonusType] || 1.0;
-      const finalPoints = Math.round(points * multiplier);
-
-      const { data, error } = await supabase
-        .from('genesis_points')
-        .insert({
-          user_id: userId,
-          job_id: jobId,
-          points: finalPoints,
-          points_type: bonusType.toUpperCase(),
-          description,
-          multiplier,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      // Update user's total Genesis Points
-      await this.updateUserTotalPoints(userId);
-
-      return data;
-    } catch (error: any) {
-      throw new Error(`Failed to award bonus points: ${error.message}`);
+      const totalProfit = await calculatePlatformProfit(period);
+      const driverPoints = await getAllDriverPoints();
+      
+      const profitShare = calculateProfitDistribution(totalProfit, driverPoints);
+      
+      // Record the distribution
+      await recordProfitDistribution(profitShare, period);
+      
+      return profitShare;
+    } catch (error) {
+      console.error('Error distributing profit shares:', error);
+      throw error;
     }
-  }
+  },
 
-  // Award referral points
-  async awardReferralPoints(
-    referrerId: string,
-    referredId: string,
-    points: number = 100
-  ): Promise<GenesisPoints> {
-    try {
-      const { data, error } = await supabase
-        .from('genesis_points')
-        .insert({
-          user_id: referrerId,
-          points,
-          points_type: 'REFERRAL',
-          description: `Referral bonus for referring user ${referredId}`,
-          multiplier: this.bonusMultipliers.referral_bonus,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      // Update user's total Genesis Points
-      await this.updateUserTotalPoints(referrerId);
-
-      return data;
-    } catch (error: any) {
-      throw new Error(`Failed to award referral points: ${error.message}`);
-    }
-  }
-
-  // Get user's Genesis Points
-  async getUserPoints(userId: string): Promise<{
+  // Get driver's Genesis Points balance
+  getDriverBalance: async (driverId: string): Promise<{
     totalPoints: number;
     availablePoints: number;
-    usedPoints: number;
-    pointsHistory: GenesisPoints[];
-  }> {
+    lockedPoints: number;
+    lifetimeEarnings: number;
+    rank: number;
+  }> => {
     try {
-      // Get all points for user
-      const { data: pointsData, error: pointsError } = await supabase
+      const { data: points, error } = await supabase
         .from('genesis_points')
         .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+        .eq('user_id', driverId);
 
-      if (pointsError) {
-        throw new Error(pointsError.message);
-      }
+      if (error) throw error;
 
-      const pointsHistory = pointsData || [];
-      const totalPoints = pointsHistory.reduce((sum, point) => sum + point.points, 0);
+      const totalPoints = points?.reduce((sum, p) => sum + p.points, 0) || 0;
+      const availablePoints = points?.filter(p => !p.locked).reduce((sum, p) => sum + p.points, 0) || 0;
+      const lockedPoints = totalPoints - availablePoints;
       
-      // For now, all points are available (no spending system implemented yet)
-      const availablePoints = totalPoints;
-      const usedPoints = 0;
+      const lifetimeEarnings = await calculateLifetimeEarnings(driverId);
+      const rank = await getDriverRank(driverId);
 
       return {
         totalPoints,
         availablePoints,
-        usedPoints,
-        pointsHistory,
+        lockedPoints,
+        lifetimeEarnings,
+        rank
       };
-    } catch (error: any) {
-      throw new Error(`Failed to get user points: ${error.message}`);
+    } catch (error) {
+      console.error('Error getting driver balance:', error);
+      throw error;
     }
-  }
+  },
 
-  // Get points leaderboard
-  async getLeaderboard(limit: number = 10): Promise<{
-    userId: string;
-    userName: string;
+  // Get Genesis Points leaderboard
+  getLeaderboard: async (limit: number = 50): Promise<Array<{
+    driverId: string;
+    driverName: string;
     totalPoints: number;
     rank: number;
-  }[]> {
+    monthlyEarnings: number;
+  }>> => {
     try {
       const { data, error } = await supabase
         .from('genesis_points')
         .select(`
           user_id,
           points,
-          users!genesis_points_user_id_fkey(name)
+          users!inner(name)
         `);
 
-      if (error) {
-        throw new Error(error.message);
-      }
+      if (error) throw error;
 
-      // Group by user and calculate totals
-      const userPoints = new Map<string, { name: string; totalPoints: number }>();
+      // Aggregate points by driver
+      const driverTotals = new Map<string, { name: string; points: number }>();
       
-      data?.forEach((point) => {
-        const userId = point.user_id;
-        const current = userPoints.get(userId) || { name: point.users?.name || 'Unknown', totalPoints: 0 };
-        userPoints.set(userId, {
-          name: current.name,
-          totalPoints: current.totalPoints + point.points,
-        });
+      data?.forEach(point => {
+        const driverId = point.user_id;
+        const current = driverTotals.get(driverId) || { name: point.users.name, points: 0 };
+        current.points += point.points;
+        driverTotals.set(driverId, current);
       });
 
-      // Convert to array and sort
-      const leaderboard = Array.from(userPoints.entries())
-        .map(([userId, data], index) => ({
-          userId,
-          userName: data.name,
-          totalPoints: data.totalPoints,
+      // Sort by points and add ranking
+      const leaderboard = Array.from(driverTotals.entries())
+        .map(([driverId, data], index) => ({
+          driverId,
+          driverName: data.name,
+          totalPoints: data.points,
           rank: index + 1,
+          monthlyEarnings: 0 // Will be calculated separately
         }))
         .sort((a, b) => b.totalPoints - a.totalPoints)
         .slice(0, limit);
 
+      // Calculate monthly earnings for each driver
+      for (const driver of leaderboard) {
+        driver.monthlyEarnings = await calculateMonthlyEarnings(driver.driverId);
+      }
+
       return leaderboard;
-    } catch (error: any) {
-      throw new Error(`Failed to get leaderboard: ${error.message}`);
-    }
-  }
-
-  // Get monthly points summary
-  async getMonthlySummary(userId: string, year: number, month: number): Promise<{
-    totalPoints: number;
-    jobPoints: number;
-    bonusPoints: number;
-    referralPoints: number;
-    pointsByDay: { date: string; points: number }[];
-  }> {
-    try {
-      const startDate = new Date(year, month - 1, 1);
-      const endDate = new Date(year, month, 0);
-
-      const { data, error } = await supabase
-        .from('genesis_points')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString())
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      const points = data || [];
-      const totalPoints = points.reduce((sum, point) => sum + point.points, 0);
-      
-      const jobPoints = points
-        .filter(p => p.points_type === 'JOB_COMPLETION')
-        .reduce((sum, point) => sum + point.points, 0);
-      
-      const bonusPoints = points
-        .filter(p => p.points_type.includes('BONUS'))
-        .reduce((sum, point) => sum + point.points, 0);
-      
-      const referralPoints = points
-        .filter(p => p.points_type === 'REFERRAL')
-        .reduce((sum, point) => sum + point.points, 0);
-
-      // Group points by day
-      const pointsByDay = new Map<string, number>();
-      points.forEach(point => {
-        const date = point.created_at.split('T')[0];
-        const current = pointsByDay.get(date) || 0;
-        pointsByDay.set(date, current + point.points);
-      });
-
-      const pointsByDayArray = Array.from(pointsByDay.entries())
-        .map(([date, points]) => ({ date, points }))
-        .sort((a, b) => a.date.localeCompare(b.date));
-
-      return {
-        totalPoints,
-        jobPoints,
-        bonusPoints,
-        referralPoints,
-        pointsByDay: pointsByDayArray,
-      };
-    } catch (error: any) {
-      throw new Error(`Failed to get monthly summary: ${error.message}`);
-    }
-  }
-
-  // Calculate profit share for user
-  async calculateProfitShare(userId: string, totalPlatformProfit: number): Promise<{
-    userPoints: number;
-    totalPoints: number;
-    sharePercentage: number;
-    profitShare: number;
-  }> {
-    try {
-      // Get user's total points
-      const userPointsData = await this.getUserPoints(userId);
-      const userPoints = userPointsData.totalPoints;
-
-      // Get total points across all users
-      const { data, error } = await supabase
-        .from('genesis_points')
-        .select('points');
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      const totalPoints = data?.reduce((sum, point) => sum + point.points, 0) || 1;
-      const sharePercentage = (userPoints / totalPoints) * 100;
-      const profitShare = (userPoints / totalPoints) * totalPlatformProfit;
-
-      return {
-        userPoints,
-        totalPoints,
-        sharePercentage,
-        profitShare,
-      };
-    } catch (error: any) {
-      throw new Error(`Failed to calculate profit share: ${error.message}`);
-    }
-  }
-
-  // Update user's total Genesis Points
-  private async updateUserTotalPoints(userId: string): Promise<void> {
-    try {
-      const userPointsData = await this.getUserPoints(userId);
-      
-      // Update driver profile if user is a driver
-      const { error: driverError } = await supabase
-        .from('driver_profiles')
-        .update({ genesis_points: userPointsData.totalPoints })
-        .eq('user_id', userId);
-
-      if (driverError) {
-        console.error('Error updating driver profile points:', driverError);
-      }
     } catch (error) {
-      console.error('Error updating user total points:', error);
+      console.error('Error getting leaderboard:', error);
+      throw error;
     }
-  }
+  },
 
-  // Get points value in GBP
-  async getPointsValue(points: number): Promise<number> {
+  // Redeem Genesis Points for rewards
+  redeemPoints: async (driverId: string, points: number, rewardType: string): Promise<{
+    success: boolean;
+    transactionId: string;
+    remainingPoints: number;
+  }> => {
     try {
-      // Get current points value from system settings
-      const { data, error } = await supabase
-        .from('system_settings')
-        .select('value')
-        .eq('key', 'genesis_points_value_gbp')
+      const balance = await getDriverBalance(driverId);
+      
+      if (balance.availablePoints < points) {
+        throw new Error('Insufficient Genesis Points');
+      }
+
+      // Create redemption transaction
+      const { data: transaction, error } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: driverId,
+          amount: points * 0.01, // 1 point = £0.01 (example rate)
+          currency: 'GBP',
+          transaction_type: 'POINTS_REDEMPTION',
+          status: 'COMPLETED',
+          description: `Redeemed ${points} Genesis Points for ${rewardType}`,
+          metadata: {
+            pointsRedeemed: points,
+            rewardType,
+            pointsValue: points * 0.01
+          },
+          created_at: new Date().toISOString(),
+          processed_at: new Date().toISOString()
+        })
+        .select()
         .single();
 
-      if (error) {
-        // Default value if not set
-        return points * 0.21; // £0.21 per point
-      }
+      if (error) throw error;
 
-      const pointsValue = data.value as number;
-      return points * pointsValue;
-    } catch (error) {
-      console.error('Error getting points value:', error);
-      return points * 0.21; // Default fallback
-    }
-  }
-
-  // Set points value
-  async setPointsValue(valuePerPoint: number): Promise<void> {
-    try {
-      const { error } = await supabase
-        .from('system_settings')
-        .upsert({
-          key: 'genesis_points_value_gbp',
-          value: valuePerPoint,
-          description: 'Genesis Points value in GBP',
-        });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-    } catch (error: any) {
-      throw new Error(`Failed to set points value: ${error.message}`);
-    }
-  }
-
-  // Get points statistics
-  async getPointsStatistics(): Promise<{
-    totalPointsAwarded: number;
-    totalUsers: number;
-    averagePointsPerUser: number;
-    pointsAwardedToday: number;
-    pointsAwardedThisMonth: number;
-  }> {
-    try {
-      // Get total points awarded
-      const { data: totalPointsData, error: totalError } = await supabase
+      // Deduct points from balance
+      await supabase
         .from('genesis_points')
-        .select('points');
-
-      if (totalError) {
-        throw new Error(totalError.message);
-      }
-
-      const totalPointsAwarded = totalPointsData?.reduce((sum, point) => sum + point.points, 0) || 0;
-
-      // Get unique users
-      const { data: usersData, error: usersError } = await supabase
-        .from('genesis_points')
-        .select('user_id')
-        .not('user_id', 'is', null);
-
-      if (usersError) {
-        throw new Error(usersError.message);
-      }
-
-      const uniqueUsers = new Set(usersData?.map(p => p.user_id) || []);
-      const totalUsers = uniqueUsers.size;
-      const averagePointsPerUser = totalUsers > 0 ? totalPointsAwarded / totalUsers : 0;
-
-      // Get today's points
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const { data: todayData, error: todayError } = await supabase
-        .from('genesis_points')
-        .select('points')
-        .gte('created_at', today.toISOString());
-
-      if (todayError) {
-        throw new Error(todayError.message);
-      }
-
-      const pointsAwardedToday = todayData?.reduce((sum, point) => sum + point.points, 0) || 0;
-
-      // Get this month's points
-      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-      
-      const { data: monthData, error: monthError } = await supabase
-        .from('genesis_points')
-        .select('points')
-        .gte('created_at', monthStart.toISOString());
-
-      if (monthError) {
-        throw new Error(monthError.message);
-      }
-
-      const pointsAwardedThisMonth = monthData?.reduce((sum, point) => sum + point.points, 0) || 0;
+        .update({ locked: true })
+        .eq('user_id', driverId)
+        .limit(points);
 
       return {
-        totalPointsAwarded,
-        totalUsers,
-        averagePointsPerUser,
-        pointsAwardedToday,
-        pointsAwardedThisMonth,
+        success: true,
+        transactionId: transaction.id,
+        remainingPoints: balance.availablePoints - points
       };
-    } catch (error: any) {
-      throw new Error(`Failed to get points statistics: ${error.message}`);
+    } catch (error) {
+      console.error('Error redeeming points:', error);
+      throw error;
+    }
+  },
+
+  // Get Genesis Points value and market data
+  getPointsValue: async (): Promise<{
+    currentValue: number;
+    valueHistory: Array<{ date: string; value: number }>;
+    marketCap: number;
+    totalPointsInCirculation: number;
+  }> => {
+    try {
+      // Get current value from system settings
+      const { data: settings, error } = await supabase
+        .from('system_settings')
+        .select('*')
+        .eq('key', 'genesis_points_value')
+        .single();
+
+      if (error) throw error;
+
+      const currentValue = parseFloat(settings?.value || '0.01');
+      
+      // Get value history (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const { data: history, error: historyError } = await supabase
+        .from('genesis_points_value_history')
+        .select('*')
+        .gte('date', thirtyDaysAgo.toISOString())
+        .order('date', { ascending: true });
+
+      if (historyError) throw historyError;
+
+      // Calculate total points in circulation
+      const { data: totalPoints, error: pointsError } = await supabase
+        .from('genesis_points')
+        .select('points', { count: 'exact' });
+
+      if (pointsError) throw pointsError;
+
+      const totalPointsInCirculation = totalPoints?.reduce((sum, p) => sum + p.points, 0) || 0;
+      const marketCap = totalPointsInCirculation * currentValue;
+
+      return {
+        currentValue,
+        valueHistory: history || [],
+        marketCap,
+        totalPointsInCirculation
+      };
+    } catch (error) {
+      console.error('Error getting points value:', error);
+      throw error;
+    }
+  },
+
+  // Update Genesis Points value based on platform performance
+  updatePointsValue: async (): Promise<void> => {
+    try {
+      const platformMetrics = await calculatePlatformMetrics();
+      const newValue = calculateNewPointsValue(platformMetrics);
+      
+      // Update current value
+      await supabase
+        .from('system_settings')
+        .upsert({
+          key: 'genesis_points_value',
+          value: newValue.toString(),
+          updated_at: new Date().toISOString()
+        });
+
+      // Record value history
+      await supabase
+        .from('genesis_points_value_history')
+        .insert({
+          date: new Date().toISOString(),
+          value: newValue,
+          metrics: platformMetrics
+        });
+    } catch (error) {
+      console.error('Error updating points value:', error);
+      throw error;
     }
   }
+};
+
+// Helper functions
+async function getJobById(jobId: string): Promise<Job | null> {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('*')
+    .eq('id', jobId)
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
-// Export singleton instance
-export const genesisPointsService = new GenesisPointsService();
+async function getUserById(userId: string): Promise<User | null> {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+async function performPointsCalculation(job: Job, driver: User): Promise<PointsCalculation> {
+  const reasons: string[] = [];
+  let basePoints = 10; // Base points for completing any job
+
+  // Volume multiplier (0.1 points per liter)
+  const volumePoints = (job.volume || 0) * 0.1;
+  const volumeMultiplier = 1 + (volumePoints / 100);
+  reasons.push(`Volume bonus: ${Math.round(volumePoints)} points`);
+
+  // Quality multiplier based on contamination level
+  let qualityMultiplier = 1;
+  switch (job.contamination) {
+    case 'NONE':
+      qualityMultiplier = 1.5;
+      reasons.push('Perfect quality: +50% bonus');
+      break;
+    case 'LOW':
+      qualityMultiplier = 1.2;
+      reasons.push('Good quality: +20% bonus');
+      break;
+    case 'MEDIUM':
+      qualityMultiplier = 1.0;
+      reasons.push('Standard quality: no bonus');
+      break;
+    case 'HIGH':
+      qualityMultiplier = 0.8;
+      reasons.push('Poor quality: -20% penalty');
+      break;
+  }
+
+  // Efficiency multiplier based on completion time
+  const estimatedDuration = job.estimatedDuration || 120; // minutes
+  const actualDuration = job.actualDuration || estimatedDuration;
+  const efficiencyMultiplier = Math.min(1.5, estimatedDuration / actualDuration);
+  if (efficiencyMultiplier > 1) {
+    reasons.push(`Efficiency bonus: +${Math.round((efficiencyMultiplier - 1) * 100)}%`);
+  }
+
+  // Loyalty multiplier based on driver history
+  const driverHistory = await getDriverJobHistory(driver.id);
+  const loyaltyMultiplier = Math.min(2.0, 1 + (driverHistory.length * 0.01));
+  if (loyaltyMultiplier > 1.1) {
+    reasons.push(`Loyalty bonus: +${Math.round((loyaltyMultiplier - 1) * 100)}%`);
+  }
+
+  // Special multipliers
+  let specialMultiplier = 1;
+  if (job.urgency === 'high') {
+    specialMultiplier *= 1.3;
+    reasons.push('Urgency bonus: +30%');
+  }
+  if (job.payment && job.payment > 100) {
+    specialMultiplier *= 1.1;
+    reasons.push('High payment bonus: +10%');
+  }
+
+  const totalPoints = Math.round(
+    basePoints * 
+    volumeMultiplier * 
+    qualityMultiplier * 
+    efficiencyMultiplier * 
+    loyaltyMultiplier * 
+    specialMultiplier
+  );
+
+  return {
+    basePoints,
+    multipliers: {
+      volume: volumeMultiplier,
+      quality: qualityMultiplier,
+      efficiency: efficiencyMultiplier,
+      loyalty: loyaltyMultiplier,
+      special: specialMultiplier
+    },
+    totalPoints,
+    reasons
+  };
+}
+
+async function storeGenesisPoints(driverId: string, jobId: string, calculation: PointsCalculation): Promise<void> {
+  const { error } = await supabase
+    .from('genesis_points')
+    .insert({
+      user_id: driverId,
+      job_id: jobId,
+      points: calculation.totalPoints,
+      points_type: 'JOB_COMPLETION',
+      description: `Job completion: ${calculation.reasons.join(', ')}`,
+      multiplier: Object.values(calculation.multipliers).reduce((a, b) => a * b, 1),
+      created_at: new Date().toISOString()
+    });
+
+  if (error) throw error;
+}
+
+async function getDriverJobHistory(driverId: string): Promise<Job[]> {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('*')
+    .eq('driver_id', driverId)
+    .eq('status', JobStatus.COMPLETED);
+
+  if (error) throw error;
+  return data || [];
+}
+
+async function calculatePlatformProfit(period: string): Promise<number> {
+  // This would calculate actual platform profit from transactions
+  // For now, return a mock value
+  const mockProfits = {
+    monthly: 50000,
+    quarterly: 150000,
+    yearly: 600000
+  };
+  
+  return mockProfits[period as keyof typeof mockProfits] || 50000;
+}
+
+async function getAllDriverPoints(): Promise<Array<{ driverId: string; points: number }>> {
+  const { data, error } = await supabase
+    .from('genesis_points')
+    .select('user_id, points');
+
+  if (error) throw error;
+
+  const driverTotals = new Map<string, number>();
+  data?.forEach(point => {
+    const current = driverTotals.get(point.user_id) || 0;
+    driverTotals.set(point.user_id, current + point.points);
+  });
+
+  return Array.from(driverTotals.entries()).map(([driverId, points]) => ({
+    driverId,
+    points
+  }));
+}
+
+function calculateProfitDistribution(totalProfit: number, driverPoints: Array<{ driverId: string; points: number }>): ProfitShare {
+  const totalPoints = driverPoints.reduce((sum, dp) => sum + dp.points, 0);
+  const driverShare = totalProfit * 0.6; // 60% to drivers
+  const platformShare = totalProfit * 0.3; // 30% to platform
+  const reserveFund = totalProfit * 0.1; // 10% to reserve
+
+  const distribution: { [driverId: string]: { points: number; share: number; amount: number } } = {};
+
+  driverPoints.forEach(({ driverId, points }) => {
+    const share = points / totalPoints;
+    const amount = driverShare * share;
+    distribution[driverId] = { points, share, amount };
+  });
+
+  return {
+    totalProfit,
+    driverShare,
+    platformShare,
+    reserveFund,
+    distribution
+  };
+}
+
+async function recordProfitDistribution(profitShare: ProfitShare, period: string): Promise<void> {
+  const { error } = await supabase
+    .from('profit_distributions')
+    .insert({
+      period,
+      total_profit: profitShare.totalProfit,
+      driver_share: profitShare.driverShare,
+      platform_share: profitShare.platformShare,
+      reserve_fund: profitShare.reserveFund,
+      distribution_data: profitShare.distribution,
+      created_at: new Date().toISOString()
+    });
+
+  if (error) throw error;
+}
+
+async function calculateLifetimeEarnings(driverId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('amount')
+    .eq('user_id', driverId)
+    .eq('transaction_type', 'POINTS_REDEMPTION');
+
+  if (error) throw error;
+  return data?.reduce((sum, t) => sum + t.amount, 0) || 0;
+}
+
+async function getDriverRank(driverId: string): Promise<number> {
+  const leaderboard = await genesisPointsService.getLeaderboard(1000);
+  const driverIndex = leaderboard.findIndex(d => d.driverId === driverId);
+  return driverIndex >= 0 ? driverIndex + 1 : 0;
+}
+
+async function calculateMonthlyEarnings(driverId: string): Promise<number> {
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('amount')
+    .eq('user_id', driverId)
+    .eq('transaction_type', 'POINTS_REDEMPTION')
+    .gte('created_at', startOfMonth.toISOString());
+
+  if (error) throw error;
+  return data?.reduce((sum, t) => sum + t.amount, 0) || 0;
+}
+
+async function calculatePlatformMetrics(): Promise<any> {
+  // Calculate various platform metrics that affect Genesis Points value
+  const { data: jobs, error: jobsError } = await supabase
+    .from('jobs')
+    .select('*')
+    .eq('status', JobStatus.COMPLETED);
+
+  if (jobsError) throw jobsError;
+
+  const totalVolume = jobs?.reduce((sum, job) => sum + (job.volume || 0), 0) || 0;
+  const totalRevenue = jobs?.reduce((sum, job) => sum + (job.payment || 0), 0) || 0;
+  const averageQuality = jobs?.reduce((sum, job) => {
+    const qualityScore = job.contamination === 'NONE' ? 4 : 
+                        job.contamination === 'LOW' ? 3 :
+                        job.contamination === 'MEDIUM' ? 2 : 1;
+    return sum + qualityScore;
+  }, 0) / (jobs?.length || 1) || 0;
+
+  return {
+    totalJobs: jobs?.length || 0,
+    totalVolume,
+    totalRevenue,
+    averageQuality,
+    platformGrowth: 1.2, // Mock growth rate
+    userSatisfaction: 4.5 // Mock satisfaction score
+  };
+}
+
+function calculateNewPointsValue(metrics: any): number {
+  // Complex algorithm to determine Genesis Points value based on platform performance
+  const baseValue = 0.01;
+  const volumeFactor = Math.min(2, metrics.totalVolume / 100000); // Scale with volume
+  const qualityFactor = metrics.averageQuality / 4; // Scale with quality
+  const growthFactor = metrics.platformGrowth;
+  const satisfactionFactor = metrics.userSatisfaction / 5;
+
+  const newValue = baseValue * volumeFactor * qualityFactor * growthFactor * satisfactionFactor;
+  
+  // Ensure value doesn't change too drastically
+  const maxChange = 0.5; // 50% max change
+  return Math.max(0.001, Math.min(0.1, newValue));
+}
