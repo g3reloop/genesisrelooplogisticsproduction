@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import HomePage from './pages/HomePage';
+import AICustomerSupport from './components/ai/AICustomerSupport';
 
 const App: React.FC = () => {
   return (
@@ -11,6 +12,7 @@ const App: React.FC = () => {
           <Route path="/" element={<HomePage />} />
           <Route path="*" element={<HomePage />} />
         </Routes>
+        <AICustomerSupport />
         <Toaster position="top-right" />
       </div>
     </Router>

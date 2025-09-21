@@ -14,7 +14,7 @@ export class QRCodeGenerator {
   private baseUrl: string;
 
   constructor(baseUrl?: string) {
-    this.baseUrl = baseUrl || process.env.VITE_APP_URL || 'https://genesisreloop.com';
+    this.baseUrl = baseUrl || (typeof window !== 'undefined' ? window.location.origin : 'https://genesisreloop.com');
   }
 
   /**
@@ -114,7 +114,9 @@ export class QRCodeGenerator {
       
       return null;
     } catch (error) {
-      console.error('Error parsing QR code data:', error);
+      if (typeof console !== 'undefined') {
+        console.error('Error parsing QR code data:', error);
+      }
       return null;
     }
   }

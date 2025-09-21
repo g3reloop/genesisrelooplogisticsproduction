@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #00F0B5; /* Vibrant Teal */
+  --primary-accent: #00F0B5; /* Use same for accent actions */
+  --background: #0A0F0D; /* Very Dark Green/Black */
+  --card-bg: rgba(10, 30, 25, 0.5); /* Semi-transparent dark teal */
+  --text-primary: #E5E7EB; /* Light Gray */
+  --text-secondary: #9CA3AF; /* Medium Gray */
+  --border-color: rgba(0, 240, 181, 0.2); /* Faint teal for borders */
+  --shadow-color: rgba(0, 240, 181, 0.3); /* Teal for glow effect */
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--background);
+  color: var(--text-primary);
+}
+
+/* Custom component styles */
+.gradient-bg {
+  background: linear-gradient(135deg, #0A0F0D 0%, #1A2F2A 100%);
+}
+
+.card-glow {
+  box-shadow: 0 0 20px var(--shadow-color);
+}
+
+/* Button variants */
+.btn-primary {
+  @apply bg-teal-500 hover:bg-teal-600 text-white font-medium py-2 px-4 rounded-lg transition-colors;
+}
+
+.btn-secondary {
+  @apply bg-gray-200 hover:bg-gray-300 text-gray-900 font-medium py-2 px-4 rounded-lg transition-colors;
+}
+
+.btn-outline {
+  @apply border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg transition-colors;
+}
+
+/* Form styles */
+.form-input {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500;
+}
+
+/* Animation utilities */
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+/* Loading spinner */
+.spinner {
+  @apply animate-spin rounded-full border-2 border-gray-300 border-t-teal-500;
+}
+
+/* Responsive utilities */
+@media (max-width: 640px) {
+  .container {
+    @apply px-4;
+  }
+}

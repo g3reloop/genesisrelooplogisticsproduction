@@ -225,8 +225,8 @@ export interface DWTNRecord {
   deliveryTime?: string;
   collectionGps?: { lat: number; lng: number };
   deliveryGps?: { lat: number; lng: number };
-  restaurantDetails: Record<string, any>;
-  processorDetails?: Record<string, any>;
+  restaurantDetails: Record<string, unknown>;
+  processorDetails?: Record<string, unknown>;
   status: DWTNStatus;
   metadataUri?: string;
   isVerified: boolean;
@@ -268,7 +268,7 @@ export interface FraudAlert {
   alertType: string;
   severity: AlertSeverity;
   description: string;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
   isResolved: boolean;
   resolvedAt?: string;
   createdAt: string;
@@ -299,8 +299,8 @@ export interface AIJobMatch {
 export interface AIRouteOptimization {
   id: string;
   driverId: string;
-  originalRoute: Record<string, any>;
-  optimizedRoute: Record<string, any>;
+  originalRoute: Record<string, unknown>;
+  optimizedRoute: Record<string, unknown>;
   savingsPercentage?: number;
   aiReasoning?: string;
   appliedAt?: string;
@@ -344,7 +344,7 @@ export interface Transaction {
   stripePaymentIntentId?: string;
   status: PaymentStatus;
   description?: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   createdAt: string;
   processedAt?: string;
 }
@@ -355,7 +355,7 @@ export interface Notification {
   type: NotificationType;
   title: string;
   message: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   readAt?: string;
   sentAt?: string;
   createdAt: string;
@@ -392,7 +392,7 @@ export interface DriverLocation {
 export interface SystemSetting {
   id: string;
   key: string;
-  value: Record<string, any>;
+  value: Record<string, unknown>;
   description?: string;
   updatedAt: string;
 }
@@ -403,8 +403,8 @@ export interface AuditLog {
   action: string;
   resourceType: string;
   resourceId?: string;
-  oldValues?: Record<string, any>;
-  newValues?: Record<string, any>;
+  oldValues?: Record<string, unknown>;
+  newValues?: Record<string, unknown>;
   ipAddress?: string;
   userAgent?: string;
   createdAt: string;
