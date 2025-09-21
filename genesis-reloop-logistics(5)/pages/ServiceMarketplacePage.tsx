@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../components/common/Button';
 import { ServiceType, SubscriptionStatus } from '../types';
+import { StripeCheckout } from '../components/checkout/StripeCheckout';
 import { toast } from 'react-hot-toast';
 
 interface Service {
@@ -9,6 +10,7 @@ interface Service {
   name: string;
   description: string;
   price: number;
+  priceId: string;
   features: string[];
   targetAudience: string[];
   icon: string;
@@ -22,6 +24,7 @@ const services: Service[] = [
     name: 'ISCC Compliance Verification',
     description: 'Automated ISCC compliance verification for your UCO collection and processing operations',
     price: 150,
+    priceId: 'price_1S9msn2YOzyNMCQi8IZd62nE',
     features: [
       'Automated compliance checking',
       'Real-time verification reports',
@@ -39,6 +42,7 @@ const services: Service[] = [
     name: 'Mass Balance Monitoring',
     description: 'Track and monitor mass balance for UCO processing with real-time analytics',
     price: 100,
+    priceId: 'price_1S9msv2YOzyNMCQipi1DOf9f',
     features: [
       'Real-time mass balance tracking',
       'Efficiency analytics',
@@ -55,6 +59,7 @@ const services: Service[] = [
     name: 'Fraud Prevention System',
     description: 'AI-powered fraud detection and prevention for UCO transactions',
     price: 200,
+    priceId: 'price_1S9mt42YOzyNMCQiLb0LGwfC',
     features: [
       'AI-powered fraud detection',
       'Real-time transaction monitoring',
@@ -72,6 +77,7 @@ const services: Service[] = [
     name: 'Automated Documentation',
     description: 'Generate compliance documents and reports automatically',
     price: 300,
+    priceId: 'price_1S9mtD2YOzyNMCQiHFr2dEOL',
     features: [
       'Automated document generation',
       'Custom report templates',
@@ -84,10 +90,12 @@ const services: Service[] = [
   }
 ];
 
-export const ServiceMarketplacePage: React.FC = () => {
+const ServiceMarketplacePage: React.FC = () => {
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [userSubscriptions, setUserSubscriptions] = useState<Record<string, SubscriptionStatus>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [checkoutService, setCheckoutService] = useState<Service | null>(null);
 
   useEffect(() => {
     loadUserSubscriptions();
@@ -100,27 +108,25 @@ export const ServiceMarketplacePage: React.FC = () => {
   };
 
   const handleSubscribe = async (service: Service) => {
-    setIsLoading(true);
-    try {
-      // In a real implementation, this would integrate with Stripe
-      // and create a subscription in Supabase
-      console.log('Subscribing to service:', service);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+    setCheckoutService(service);
+    setShowCheckout(true);
+  };
+
+  const handleCheckoutSuccess = (subscriptionId: string) => {
+    if (checkoutService) {
       setUserSubscriptions(prev => ({
         ...prev,
-        [service.type]: SubscriptionStatus.ACTIVE
+        [checkoutService.type]: SubscriptionStatus.ACTIVE
       }));
-      
-      toast.success(`Successfully subscribed to ${service.name}!`);
-    } catch (error) {
-      console.error('Error subscribing to service:', error);
-      toast.error('Failed to subscribe to service');
-    } finally {
-      setIsLoading(false);
+      toast.success(`Successfully subscribed to ${checkoutService.name}!`);
     }
+    setShowCheckout(false);
+    setCheckoutService(null);
+  };
+
+  const handleCheckoutCancel = () => {
+    setShowCheckout(false);
+    setCheckoutService(null);
   };
 
   const handleUnsubscribe = async (service: Service) => {
@@ -404,6 +410,17 @@ export const ServiceMarketplacePage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Stripe Checkout */}
+      {showCheckout && checkoutService && (
+        <StripeCheckout
+          serviceType={checkoutService.type}
+          priceId={checkoutService.priceId}
+          onSuccess={handleCheckoutSuccess}
+          onCancel={handleCheckoutCancel}
+        />
+      )}
     </div>
   );
 };
+export default ServiceMarketplacePage;

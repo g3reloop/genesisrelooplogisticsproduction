@@ -39,7 +39,7 @@ interface MassBalanceData {
   efficiency: number;
 }
 
-export const ProcessorHubPage: React.FC = () => {
+const ProcessorHubPage: React.FC = () => {
   const [processorData, setProcessorData] = useState<ProcessorData | null>(null);
   const [deliveries, setDeliveries] = useState<DWTNDelivery[]>([]);
   const [massBalanceData, setMassBalanceData] = useState<MassBalanceData[]>([]);
@@ -599,3 +599,4 @@ export const ProcessorHubPage: React.FC = () => {
     </div>
   );
 };
+export default ProcessorHubPage;

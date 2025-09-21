@@ -10,7 +10,7 @@ interface ServiceDashboardProps {
   serviceType: ServiceType;
 }
 
-export const ServiceDashboardPage: React.FC<ServiceDashboardProps> = ({ serviceType }) => {
+const ServiceDashboardPage: React.FC<ServiceDashboardProps> = ({ serviceType }) => {
   const [subscription, setSubscription] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState<any>(null);
@@ -478,3 +478,4 @@ export const ServiceDashboardPage: React.FC<ServiceDashboardProps> = ({ serviceT
     </div>
   );
 };
+export default ServiceDashboardPage;

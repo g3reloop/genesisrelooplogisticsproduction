@@ -6,7 +6,7 @@ import { blockchainService } from '../services/blockchainService';
 import { DWTNRecord, DWTNStatus } from '../types';
 import { toast } from 'react-hot-toast';
 
-export const BlockchainVerificationPage: React.FC = () => {
+const BlockchainVerificationPage: React.FC = () => {
   const { batchId } = useParams<{ batchId: string }>();
   const navigate = useNavigate();
   const [searchBatchId, setSearchBatchId] = useState(batchId || '');
@@ -423,3 +423,5 @@ export const BlockchainVerificationPage: React.FC = () => {
     </div>
   );
 };
+
+export default BlockchainVerificationPage;

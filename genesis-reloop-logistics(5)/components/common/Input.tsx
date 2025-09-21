@@ -1,29 +1,48 @@
 import React from 'react';
 
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label: string;
-  id: string;
+interface InputProps {
+  type?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url';
+  placeholder?: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  label?: string;
+  error?: string;
+  disabled?: boolean;
+  required?: boolean;
+  className?: string;
 }
 
-const Input: React.FC<InputProps> = ({ label, id, className, ...props }) => {
+export const Input: React.FC<InputProps> = ({
+  type = 'text',
+  placeholder,
+  value,
+  onChange,
+  label,
+  error,
+  disabled = false,
+  required = false,
+  className = '',
+}) => {
   return (
-    <div>
-      <label htmlFor={id} className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-        {label}
-      </label>
-      <div className="mt-1">
-        <input
-          id={id}
-          className={`block w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-2 sm:text-sm ${className}`}
-          style={{ 
-            backgroundColor: 'var(--card-bg)',
-            borderColor: 'var(--border-color)', 
-            color: 'var(--text-primary)',
-            '--tw-ring-color': 'var(--primary)'
-          } as React.CSSProperties}
-          {...props}
-        />
-      </div>
+    <div className="w-full">
+      {label && (
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          {label}
+          {required && <span className="text-red-500 ml-1">*</span>}
+        </label>
+      )}
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        required={required}
+        className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${error ? 'border-red-500' : ''} ${className}`}
+      />
+      {error && (
+        <p className="mt-1 text-sm text-red-600">{error}</p>
+      )}
     </div>
   );
 };
