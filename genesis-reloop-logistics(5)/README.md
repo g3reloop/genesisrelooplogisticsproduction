@@ -16,6 +16,26 @@ A comprehensive circular economy platform for Used Cooking Oil (UCO) that connec
 - **Payment Processing**: Stripe integration for secure transactions
 - **Maps Integration**: Google Maps for location services and navigation
 
+### Chain of Custody & Compliance
+- **ISCC-Compliant DWTN NFTs**: Immutable blockchain records for UCO batches
+- **QR Code Verification**: Public verification dashboard for stakeholders
+- **Real-time Tracking**: GPS coordinates and timestamps at collection/delivery
+- **Processor Verification**: Blockchain-confirmed delivery and verification
+- **Audit Trail**: Complete chain of custody from restaurant to processor
+
+### AI-Powered Services
+- **LLM Job Matching**: Intelligent driver-job matching using OpenRouter API
+- **Route Optimization**: AI-powered route planning and optimization
+- **Customer Support**: AI assistant for user guidance and support
+- **Fraud Detection**: AI-powered transaction monitoring and risk assessment
+- **Mass Balance Analytics**: AI insights for processing efficiency
+
+### Additional Services
+- **ISCC Compliance Verification**: Automated compliance checking (£150/month)
+- **Mass Balance Monitoring**: Real-time tracking and analytics (£100/month)
+- **Fraud Prevention System**: AI-powered fraud detection (£200/month)
+- **Automated Documentation**: Compliance document generation (£300/month)
+
 ### Advanced Features
 - **Progressive Web App (PWA)**: Offline functionality and mobile app-like experience
 - **Real-time Notifications**: Push notifications and email alerts

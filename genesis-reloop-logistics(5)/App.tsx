@@ -21,6 +21,11 @@ import SettingsPage from './pages/SettingsPage';
 import AdminDashboard from './pages/AdminDashboard';
 import BuyerDashboard from './pages/BuyerDashboard';
 import MobileJobsPage from './pages/MobileJobsPage';
+import BlockchainVerificationPage from './pages/BlockchainVerificationPage';
+import ServiceMarketplacePage from './pages/ServiceMarketplacePage';
+import ServiceDashboardPage from './pages/ServiceDashboardPage';
+import ProcessorHubPage from './pages/ProcessorHubPage';
+import { AICustomerSupport } from './components/common/AICustomerSupport';
 
 const App: React.FC = () => {
   return (
@@ -41,6 +46,10 @@ const Main: React.FC = () => {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/verify/:batchId" element={<BlockchainVerificationPage />} />
+          <Route path="/services" element={<ServiceMarketplacePage />} />
+          <Route path="/service-dashboard/:serviceType" element={<ServiceDashboardPage />} />
+          <Route path="/processor-hub" element={<ProcessorHubPage />} />
           
                   <Route element={<ProtectedRoute />}>
                       <Route path="/dashboard" element={<DashboardPage />} />
@@ -64,6 +73,7 @@ const Main: React.FC = () => {
         </Routes>
       </main>
       <BottomNav />
+      <AICustomerSupport />
     </div>
   );
 }

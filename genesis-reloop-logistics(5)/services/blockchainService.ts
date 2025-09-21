@@ -1,468 +1,312 @@
 import { ethers } from 'ethers';
-import { Job, DWTNRecord, User } from '../types';
+import { DWTNRecord, DWTNStatus } from '../types';
+
+// DWTN Contract ABI (simplified for this example)
+const DWTN_CONTRACT_ABI = [
+  "function mintDWTN(address to, string memory batchId, address origin, uint256 volume, string memory collectionGPS, string memory restaurantDetails, string memory metadataURI) external returns (uint256)",
+  "function updateStatus(uint256 tokenId, uint8 newStatus) external",
+  "function recordDelivery(uint256 tokenId, address processor, string memory deliveryGPS, string memory processorDetails) external",
+  "function verifyDWTN(uint256 tokenId, bool verified) external",
+  "function getDWTNData(uint256 tokenId) external view returns (tuple(string batchId, address origin, address collector, address processor, uint256 volume, uint256 collectionTime, uint256 deliveryTime, string collectionGPS, string deliveryGPS, string restaurantDetails, string processorDetails, uint8 status, string metadataURI, bool isVerified))",
+  "function getDWTNByBatch(string memory batchId) external view returns (tuple(string batchId, address origin, address collector, address processor, uint256 volume, uint256 collectionTime, uint256 deliveryTime, string collectionGPS, string deliveryGPS, string restaurantDetails, string processorDetails, uint8 status, string metadataURI, bool isVerified))",
+  "function getTokensByOwner(address owner) external view returns (uint256[] memory)",
+  "function getTokensByStatus(uint8 status) external view returns (uint256[] memory)",
+  "function totalSupply() external view returns (uint256)",
+  "event DWTNMinted(uint256 indexed tokenId, string batchId, address indexed origin, address indexed collector, uint256 volume)",
+  "event DWTNStatusUpdated(uint256 indexed tokenId, uint8 oldStatus, uint8 newStatus)",
+  "event DWTNDelivered(uint256 indexed tokenId, address indexed processor, uint256 deliveryTime)",
+  "event DWTNVerified(uint256 indexed tokenId, address indexed processor, bool verified)"
+];
+
+// Polygon Mumbai Testnet configuration
+const POLYGON_MUMBAI_RPC = 'https://rpc-mumbai.maticvigil.com';
+const DWTN_CONTRACT_ADDRESS = process.env.VITE_DWTN_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000';
 
 class BlockchainService {
-  private provider: ethers.JsonRpcProvider | null = null;
-  private wallet: ethers.Wallet | null = null;
-  private contract: ethers.Contract | null = null;
-  private contractAddress: string;
-  private contractABI: any[];
+  private provider: ethers.providers.JsonRpcProvider;
+  private contract: ethers.Contract;
+  private signer: ethers.Signer | null = null;
 
   constructor() {
-    this.contractAddress = import.meta.env.VITE_CONTRACT_ADDRESS || '';
-    this.contractABI = this.getContractABI();
-    this.initializeProvider();
+    this.provider = new ethers.providers.JsonRpcProvider(POLYGON_MUMBAI_RPC);
+    this.contract = new ethers.Contract(DWTN_CONTRACT_ADDRESS, DWTN_CONTRACT_ABI, this.provider);
   }
 
-  // Initialize provider and wallet
-  private initializeProvider(): void {
-    try {
-      const rpcUrl = import.meta.env.VITE_POLYGON_RPC_URL || 'https://polygon-rpc.com';
-      this.provider = new ethers.JsonRpcProvider(rpcUrl);
-      
-      const privateKey = import.meta.env.VITE_PRIVATE_KEY;
-      if (privateKey) {
-        this.wallet = new ethers.Wallet(privateKey, this.provider);
-        this.initializeContract();
-      }
-    } catch (error) {
-      console.error('Error initializing blockchain service:', error);
+  /**
+   * Connect wallet and set signer
+   */
+  async connectWallet(): Promise<string> {
+    if (typeof window.ethereum !== 'undefined') {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      this.signer = this.provider.getSigner(accounts[0]);
+      this.contract = this.contract.connect(this.signer);
+      return accounts[0];
     }
+    throw new Error('MetaMask not found');
   }
 
-  // Initialize contract
-  private initializeContract(): void {
-    if (this.wallet && this.contractAddress) {
-      this.contract = new ethers.Contract(
-        this.contractAddress,
-        this.contractABI,
-        this.wallet
-      );
-    }
-  }
-
-  // Get contract ABI
-  private getContractABI(): any[] {
-    return [
-      {
-        "inputs": [
-          {
-            "internalType": "string",
-            "name": "dwtnNumber",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "supplierDetails",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "driverDetails",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "buyerDetails",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "wasteDetails",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "collectionDetails",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "deliveryDetails",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "complianceData",
-            "type": "string"
-          }
-        ],
-        "name": "createDWTN",
-        "outputs": [
-          {
-            "internalType": "uint256",
-            "name": "",
-            "type": "uint256"
-          }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-      },
-      {
-        "inputs": [
-          {
-            "internalType": "string",
-            "name": "dwtnNumber",
-            "type": "string"
-          }
-        ],
-        "name": "getDWTN",
-        "outputs": [
-          {
-            "components": [
-              {
-                "internalType": "string",
-                "name": "dwtnNumber",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "supplierDetails",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "driverDetails",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "buyerDetails",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "wasteDetails",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "collectionDetails",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "deliveryDetails",
-                "type": "string"
-              },
-              {
-                "internalType": "string",
-                "name": "complianceData",
-                "type": "string"
-              },
-              {
-                "internalType": "uint256",
-                "name": "timestamp",
-                "type": "uint256"
-              },
-              {
-                "internalType": "address",
-                "name": "creator",
-                "type": "address"
-              }
-            ],
-            "internalType": "struct GenesisDWTN.DWTNRecord",
-            "name": "",
-            "type": "tuple"
-          }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-      },
-      {
-        "inputs": [
-          {
-            "internalType": "string",
-            "name": "dwtnNumber",
-            "type": "string"
-          }
-        ],
-        "name": "verifyDWTN",
-        "outputs": [
-          {
-            "internalType": "bool",
-            "name": "",
-            "type": "bool"
-          }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-      },
-      {
-        "anonymous": false,
-        "inputs": [
-          {
-            "indexed": true,
-            "internalType": "string",
-            "name": "dwtnNumber",
-            "type": "string"
-          },
-          {
-            "indexed": true,
-            "internalType": "address",
-            "name": "creator",
-            "type": "address"
-          },
-          {
-            "indexed": false,
-            "internalType": "uint256",
-            "name": "timestamp",
-            "type": "uint256"
-          }
-        ],
-        "name": "DWTNCreated",
-        "type": "event"
-      }
-    ];
-  }
-
-  // Create DWTN on blockchain
-  async createDWTN(
-    job: Job,
-    supplier: User,
-    driver: User,
-    buyer: User
-  ): Promise<{ txHash: string; blockNumber: number }> {
-    if (!this.contract) {
-      throw new Error('Blockchain service not initialized');
+  /**
+   * Mint a new DWTN NFT
+   */
+  async mintDWTN(dwtData: {
+    to: string;
+    batchId: string;
+    origin: string;
+    volume: number;
+    collectionGPS: string;
+    restaurantDetails: string;
+    metadataURI: string;
+  }): Promise<{ tokenId: number; txHash: string }> {
+    if (!this.signer) {
+      throw new Error('Wallet not connected');
     }
 
     try {
-      const dwtnNumber = this.generateDWTNNumber();
-      
-      const supplierDetails = JSON.stringify({
-        id: supplier.id,
-        name: supplier.name,
-        address: supplier.address,
-        phone: supplier.phone,
-        email: supplier.email,
-        companiesHouseNumber: supplier.companiesHouseNumber,
-      });
-
-      const driverDetails = JSON.stringify({
-        id: driver.id,
-        name: driver.name,
-        phone: driver.phone,
-        email: driver.email,
-        licenseNumber: driver.licenseNumber,
-        vehicleRegistration: driver.vehicleReg,
-        vehicleType: driver.vehicleType,
-      });
-
-      const buyerDetails = JSON.stringify({
-        id: buyer.id,
-        name: buyer.name,
-        address: buyer.address,
-        phone: buyer.phone,
-        email: buyer.email,
-        facilityName: buyer.facilityName,
-      });
-
-      const wasteDetails = JSON.stringify({
-        volume: job.volume,
-        confirmedVolume: job.confirmedVolume || job.volume,
-        contamination: job.contamination,
-        state: job.state,
-        description: job.description,
-      });
-
-      const collectionDetails = JSON.stringify({
-        pickupAddress: job.pickupAddress,
-        pickupCoordinates: job.pickupCoordinates,
-        actualPickupTime: job.actualPickupTime,
-        estimatedPickupTime: job.estimatedPickupTime,
-        specialInstructions: job.specialInstructions,
-      });
-
-      const deliveryDetails = JSON.stringify({
-        deliveryAddress: job.deliveryAddress,
-        deliveryCoordinates: job.deliveryCoordinates,
-        actualDeliveryTime: job.actualDeliveryTime,
-        estimatedDeliveryTime: job.estimatedDeliveryTime,
-      });
-
-      const complianceData = JSON.stringify({
-        jobId: job.id,
-        createdAt: job.createdAt,
-        completedAt: job.completedAt,
-        genesisPointsReward: job.genesisPointsReward,
-        paymentAmount: job.paymentAmount,
-        paymentStatus: job.paymentStatus,
-      });
-
-      const tx = await this.contract.createDWTN(
-        dwtnNumber,
-        supplierDetails,
-        driverDetails,
-        buyerDetails,
-        wasteDetails,
-        collectionDetails,
-        deliveryDetails,
-        complianceData
+      const tx = await this.contract.mintDWTN(
+        dwtData.to,
+        dwtData.batchId,
+        dwtData.origin,
+        ethers.utils.parseEther(dwtData.volume.toString()),
+        dwtData.collectionGPS,
+        dwtData.restaurantDetails,
+        dwtData.metadataURI
       );
 
       const receipt = await tx.wait();
-      
-      return {
-        txHash: receipt.hash,
-        blockNumber: receipt.blockNumber,
-      };
-    } catch (error: any) {
-      console.error('Error creating DWTN:', error);
-      throw new Error(`Failed to create DWTN: ${error.message}`);
-    }
-  }
-
-  // Get DWTN from blockchain
-  async getDWTN(dwtnNumber: string): Promise<DWTNRecord | null> {
-    if (!this.contract) {
-      throw new Error('Blockchain service not initialized');
-    }
-
-    try {
-      const dwtn = await this.contract.getDWTN(dwtnNumber);
-      
-      if (!dwtn || dwtn.dwtnNumber === '') {
-        return null;
-      }
+      const tokenId = receipt.events[0].args.tokenId.toNumber();
 
       return {
-        id: '', // Will be set by database
-        jobId: '', // Will be set by database
-        dwtnNumber: dwtn.dwtnNumber,
-        blockchainTxHash: '', // Will be set by caller
-        blockchainBlockNumber: dwtn.timestamp,
-        supplierDetails: JSON.parse(dwtn.supplierDetails),
-        driverDetails: JSON.parse(dwtn.driverDetails),
-        buyerDetails: JSON.parse(dwtn.buyerDetails),
-        wasteDetails: JSON.parse(dwtn.wasteDetails),
-        collectionDetails: JSON.parse(dwtn.collectionDetails),
-        deliveryDetails: JSON.parse(dwtn.deliveryDetails),
-        complianceData: JSON.parse(dwtn.complianceData),
-        createdAt: new Date(Number(dwtn.timestamp) * 1000).toISOString(),
-        verifiedAt: new Date().toISOString(),
-      };
-    } catch (error: any) {
-      console.error('Error getting DWTN:', error);
-      throw new Error(`Failed to get DWTN: ${error.message}`);
-    }
-  }
-
-  // Verify DWTN exists on blockchain
-  async verifyDWTN(dwtnNumber: string): Promise<boolean> {
-    if (!this.contract) {
-      throw new Error('Blockchain service not initialized');
-    }
-
-    try {
-      return await this.contract.verifyDWTN(dwtnNumber);
-    } catch (error: any) {
-      console.error('Error verifying DWTN:', error);
-      return false;
-    }
-  }
-
-  // Generate unique DWTN number
-  private generateDWTNNumber(): string {
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-    return `DWTN-${timestamp}-${random}`;
-  }
-
-  // Get current block number
-  async getCurrentBlockNumber(): Promise<number> {
-    if (!this.provider) {
-      throw new Error('Provider not initialized');
-    }
-
-    try {
-      return await this.provider.getBlockNumber();
-    } catch (error: any) {
-      console.error('Error getting block number:', error);
-      throw new Error(`Failed to get block number: ${error.message}`);
-    }
-  }
-
-  // Get transaction details
-  async getTransactionDetails(txHash: string): Promise<any> {
-    if (!this.provider) {
-      throw new Error('Provider not initialized');
-    }
-
-    try {
-      const tx = await this.provider.getTransaction(txHash);
-      const receipt = await this.provider.getTransactionReceipt(txHash);
-      
-      return {
-        transaction: tx,
-        receipt: receipt,
-      };
-    } catch (error: any) {
-      console.error('Error getting transaction details:', error);
-      throw new Error(`Failed to get transaction details: ${error.message}`);
-    }
-  }
-
-  // Check if wallet is connected
-  isConnected(): boolean {
-    return this.wallet !== null && this.contract !== null;
-  }
-
-  // Get wallet address
-  getWalletAddress(): string | null {
-    return this.wallet?.address || null;
-  }
-
-  // Get network info
-  async getNetworkInfo(): Promise<{ name: string; chainId: number } | null> {
-    if (!this.provider) {
-      return null;
-    }
-
-    try {
-      const network = await this.provider.getNetwork();
-      return {
-        name: network.name,
-        chainId: Number(network.chainId),
+        tokenId,
+        txHash: receipt.transactionHash
       };
     } catch (error) {
-      console.error('Error getting network info:', error);
-      return null;
+      console.error('Error minting DWTN:', error);
+      throw new Error('Failed to mint DWTN');
     }
   }
 
-  // Estimate gas for DWTN creation
-  async estimateGasForDWTN(
-    dwtnNumber: string,
-    supplierDetails: string,
-    driverDetails: string,
-    buyerDetails: string,
-    wasteDetails: string,
-    collectionDetails: string,
-    deliveryDetails: string,
-    complianceData: string
-  ): Promise<bigint> {
-    if (!this.contract) {
-      throw new Error('Contract not initialized');
+  /**
+   * Update DWTN status
+   */
+  async updateDWTNStatus(tokenId: number, status: DWTNStatus): Promise<string> {
+    if (!this.signer) {
+      throw new Error('Wallet not connected');
     }
 
     try {
-      return await this.contract.createDWTN.estimateGas(
-        dwtnNumber,
-        supplierDetails,
-        driverDetails,
-        buyerDetails,
-        wasteDetails,
-        collectionDetails,
-        deliveryDetails,
-        complianceData
-      );
-    } catch (error: any) {
-      console.error('Error estimating gas:', error);
-      throw new Error(`Failed to estimate gas: ${error.message}`);
+      const tx = await this.contract.updateStatus(tokenId, status);
+      const receipt = await tx.wait();
+      return receipt.transactionHash;
+    } catch (error) {
+      console.error('Error updating DWTN status:', error);
+      throw new Error('Failed to update DWTN status');
     }
+  }
+
+  /**
+   * Record delivery to processor
+   */
+  async recordDelivery(
+    tokenId: number,
+    processor: string,
+    deliveryGPS: string,
+    processorDetails: string
+  ): Promise<string> {
+    if (!this.signer) {
+      throw new Error('Wallet not connected');
+    }
+
+    try {
+      const tx = await this.contract.recordDelivery(
+        tokenId,
+        processor,
+        deliveryGPS,
+        processorDetails
+      );
+      const receipt = await tx.wait();
+      return receipt.transactionHash;
+    } catch (error) {
+      console.error('Error recording delivery:', error);
+      throw new Error('Failed to record delivery');
+    }
+  }
+
+  /**
+   * Verify DWTN by processor
+   */
+  async verifyDWTN(tokenId: number, verified: boolean): Promise<string> {
+    if (!this.signer) {
+      throw new Error('Wallet not connected');
+    }
+
+    try {
+      const tx = await this.contract.verifyDWTN(tokenId, verified);
+      const receipt = await tx.wait();
+      return receipt.transactionHash;
+    } catch (error) {
+      console.error('Error verifying DWTN:', error);
+      throw new Error('Failed to verify DWTN');
+    }
+  }
+
+  /**
+   * Get DWTN data by token ID
+   */
+  async getDWTNData(tokenId: number): Promise<DWTNRecord> {
+    try {
+      const data = await this.contract.getDWTNData(tokenId);
+      
+      return {
+        id: tokenId.toString(),
+        tokenId,
+        batchId: data.batchId,
+        originId: data.origin,
+        collectorId: data.collector,
+        processorId: data.processor !== ethers.constants.AddressZero ? data.processor : undefined,
+        volumeLiters: parseFloat(ethers.utils.formatEther(data.volume)),
+        collectionTime: new Date(data.collectionTime.toNumber() * 1000).toISOString(),
+        deliveryTime: data.deliveryTime.toNumber() > 0 ? new Date(data.deliveryTime.toNumber() * 1000).toISOString() : undefined,
+        collectionGps: this.parseGPS(data.collectionGPS),
+        deliveryGps: data.deliveryGPS ? this.parseGPS(data.deliveryGPS) : undefined,
+        restaurantDetails: JSON.parse(data.restaurantDetails),
+        processorDetails: data.processorDetails ? JSON.parse(data.processorDetails) : undefined,
+        status: this.mapStatus(data.status),
+        metadataUri: data.metadataURI,
+        isVerified: data.isVerified,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('Error fetching DWTN data:', error);
+      throw new Error('Failed to fetch DWTN data');
+    }
+  }
+
+  /**
+   * Get DWTN data by batch ID
+   */
+  async getDWTNByBatch(batchId: string): Promise<DWTNRecord> {
+    try {
+      const data = await this.contract.getDWTNByBatch(batchId);
+      
+      return {
+        id: data.tokenId.toString(),
+        tokenId: data.tokenId.toNumber(),
+        batchId: data.batchId,
+        originId: data.origin,
+        collectorId: data.collector,
+        processorId: data.processor !== ethers.constants.AddressZero ? data.processor : undefined,
+        volumeLiters: parseFloat(ethers.utils.formatEther(data.volume)),
+        collectionTime: new Date(data.collectionTime.toNumber() * 1000).toISOString(),
+        deliveryTime: data.deliveryTime.toNumber() > 0 ? new Date(data.deliveryTime.toNumber() * 1000).toISOString() : undefined,
+        collectionGps: this.parseGPS(data.collectionGPS),
+        deliveryGps: data.deliveryGPS ? this.parseGPS(data.deliveryGPS) : undefined,
+        restaurantDetails: JSON.parse(data.restaurantDetails),
+        processorDetails: data.processorDetails ? JSON.parse(data.processorDetails) : undefined,
+        status: this.mapStatus(data.status),
+        metadataUri: data.metadataURI,
+        isVerified: data.isVerified,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('Error fetching DWTN by batch:', error);
+      throw new Error('Failed to fetch DWTN by batch');
+    }
+  }
+
+  /**
+   * Get tokens owned by an address
+   */
+  async getTokensByOwner(owner: string): Promise<number[]> {
+    try {
+      const tokens = await this.contract.getTokensByOwner(owner);
+      return tokens.map((token: any) => token.toNumber());
+    } catch (error) {
+      console.error('Error fetching tokens by owner:', error);
+      throw new Error('Failed to fetch tokens by owner');
+    }
+  }
+
+  /**
+   * Get tokens by status
+   */
+  async getTokensByStatus(status: DWTNStatus): Promise<number[]> {
+    try {
+      const tokens = await this.contract.getTokensByStatus(status);
+      return tokens.map((token: any) => token.toNumber());
+    } catch (error) {
+      console.error('Error fetching tokens by status:', error);
+      throw new Error('Failed to fetch tokens by status');
+    }
+  }
+
+  /**
+   * Get total supply of DWTN tokens
+   */
+  async getTotalSupply(): Promise<number> {
+    try {
+      const total = await this.contract.totalSupply();
+      return total.toNumber();
+    } catch (error) {
+      console.error('Error fetching total supply:', error);
+      throw new Error('Failed to fetch total supply');
+    }
+  }
+
+  /**
+   * Generate QR code data for DWTN
+   */
+  generateQRCodeData(batchId: string): string {
+    const baseUrl = process.env.VITE_APP_URL || 'https://genesisreloop.com';
+    return `${baseUrl}/verify/${batchId}`;
+  }
+
+  /**
+   * Parse GPS coordinates from string
+   */
+  private parseGPS(gpsString: string): { lat: number; lng: number } | undefined {
+    if (!gpsString) return undefined;
+    
+    try {
+      const [lat, lng] = gpsString.split(',').map(coord => parseFloat(coord.trim()));
+      return { lat, lng };
+    } catch (error) {
+      console.error('Error parsing GPS coordinates:', error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Map blockchain status to DWTNStatus enum
+   */
+  private mapStatus(status: number): DWTNStatus {
+    const statusMap = {
+      0: DWTNStatus.MINTED,
+      1: DWTNStatus.IN_TRANSIT,
+      2: DWTNStatus.DELIVERED,
+      3: DWTNStatus.VERIFIED,
+      4: DWTNStatus.COMPLETED
+    };
+    return statusMap[status as keyof typeof statusMap] || DWTNStatus.MINTED;
+  }
+
+  /**
+   * Check if wallet is connected
+   */
+  isWalletConnected(): boolean {
+    return this.signer !== null;
+  }
+
+  /**
+   * Get current account address
+   */
+  async getCurrentAccount(): Promise<string | null> {
+    if (!this.signer) return null;
+    return await this.signer.getAddress();
   }
 }
 
 // Export singleton instance
 export const blockchainService = new BlockchainService();
+export default blockchainService;

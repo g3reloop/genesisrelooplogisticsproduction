@@ -47,6 +47,35 @@ export enum NotificationType {
   PROMOTIONAL = 'PROMOTIONAL',
 }
 
+export enum DWTNStatus {
+  MINTED = 'MINTED',
+  IN_TRANSIT = 'IN_TRANSIT',
+  DELIVERED = 'DELIVERED',
+  VERIFIED = 'VERIFIED',
+  COMPLETED = 'COMPLETED',
+}
+
+export enum ServiceType {
+  ISCC_COMPLIANCE = 'ISCC_COMPLIANCE',
+  MASS_BALANCE = 'MASS_BALANCE',
+  FRAUD_PREVENTION = 'FRAUD_PREVENTION',
+  AUTOMATED_DOCS = 'AUTOMATED_DOCS',
+}
+
+export enum SubscriptionStatus {
+  ACTIVE = 'ACTIVE',
+  CANCELLED = 'CANCELLED',
+  PAUSED = 'PAUSED',
+  EXPIRED = 'EXPIRED',
+}
+
+export enum AlertSeverity {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  CRITICAL = 'CRITICAL',
+}
+
 export interface User {
   id: string;
   name: string;
@@ -185,20 +214,112 @@ export interface BuyerProfile {
 
 export interface DWTNRecord {
   id: string;
-  jobId: string;
-  dwtnNumber: string;
+  tokenId: number;
+  batchId: string;
+  jobId?: string;
+  originId: string;
+  collectorId: string;
+  processorId?: string;
+  volumeLiters: number;
+  collectionTime: string;
+  deliveryTime?: string;
+  collectionGps?: { lat: number; lng: number };
+  deliveryGps?: { lat: number; lng: number };
+  restaurantDetails: Record<string, any>;
+  processorDetails?: Record<string, any>;
+  status: DWTNStatus;
+  metadataUri?: string;
+  isVerified: boolean;
   blockchainTxHash?: string;
-  blockchainBlockNumber?: number;
-  supplierDetails: Record<string, any>;
-  driverDetails: Record<string, any>;
-  buyerDetails: Record<string, any>;
-  wasteDetails: Record<string, any>;
-  collectionDetails: Record<string, any>;
-  deliveryDetails: Record<string, any>;
-  complianceData: Record<string, any>;
+  qrCode?: string;
   createdAt: string;
-  verifiedAt?: string;
-  ipfsHash?: string;
+  updatedAt: string;
+}
+
+export interface ServiceSubscription {
+  id: string;
+  userId: string;
+  serviceType: ServiceType;
+  status: SubscriptionStatus;
+  stripeSubscriptionId?: string;
+  priceMonthly: number;
+  currentPeriodStart?: string;
+  currentPeriodEnd?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MassBalanceRecord {
+  id: string;
+  userId: string;
+  subscriptionId: string;
+  inputVolume: number;
+  outputVolume: number;
+  wasteVolume: number;
+  efficiencyPercentage: number;
+  recordDate: string;
+  createdAt: string;
+}
+
+export interface FraudAlert {
+  id: string;
+  userId: string;
+  subscriptionId: string;
+  alertType: string;
+  severity: AlertSeverity;
+  description: string;
+  data?: Record<string, any>;
+  isResolved: boolean;
+  resolvedAt?: string;
+  createdAt: string;
+}
+
+export interface AutomatedDoc {
+  id: string;
+  userId: string;
+  subscriptionId: string;
+  documentType: string;
+  title: string;
+  content: string;
+  filePath?: string;
+  generatedAt: string;
+  expiresAt?: string;
+}
+
+export interface AIJobMatch {
+  id: string;
+  jobId: string;
+  driverId: string;
+  matchScore: number;
+  aiReasoning?: string;
+  isAccepted?: boolean;
+  createdAt: string;
+}
+
+export interface AIRouteOptimization {
+  id: string;
+  driverId: string;
+  originalRoute: Record<string, any>;
+  optimizedRoute: Record<string, any>;
+  savingsPercentage?: number;
+  aiReasoning?: string;
+  appliedAt?: string;
+  createdAt: string;
+}
+
+export interface AISupportConversation {
+  id: string;
+  userId?: string;
+  sessionId: string;
+  messages: Array<{
+    role: 'user' | 'assistant';
+    content: string;
+    timestamp: string;
+  }>;
+  resolved: boolean;
+  satisfactionRating?: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface GenesisPoints {
