@@ -1,0 +1,185 @@
+:root {
+  --color-primary: #8B1A3D;
+  --color-secondary: #00539B;
+  --color-background: #F8F9FA;
+  --color-header-bg: #2C3E50;
+  --color-text-light: #FFFFFF;
+  --color-text-dark: #2C3E50;
+  --color-border: #DEE2E6;
+  --color-lecture: #8B1A3D;
+  --color-seminar: #00539B;
+  --color-dissertation: #2E8B57;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  color: var(--color-text-dark);
+  background: var(--color-background);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  line-height: 1.5;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  height: 1px; width: 1px;
+  overflow: hidden;
+  clip: rect(1px, 1px, 1px, 1px);
+  white-space: nowrap;
+}
+
+.site-header {
+  background: var(--color-header-bg);
+  color: var(--color-text-light);
+  padding: 1rem 1.25rem;
+  border-bottom: 4px solid var(--color-primary);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  color: var(--color-text-light);
+  font-weight: 700;
+  border-radius: 6px;
+}
+
+.brand-text h1 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.student-meta {
+  margin: 0.25rem 0 0 0;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.95rem;
+}
+
+.student-meta .meta-item { opacity: 0.95; }
+
+.days-on-campus {
+  margin: 0.25rem 0 0 0;
+  font-size: 0.95rem;
+}
+
+.meta {
+  margin-top: 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.legend {
+  display: inline-flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.legend-item { display: inline-flex; gap: 0.5rem; align-items: center; }
+.swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+.swatch.lecture { background: var(--color-lecture); }
+.swatch.seminar { background: var(--color-seminar); }
+.swatch.dissertation { background: var(--color-dissertation); }
+
+.container { padding: 1rem 1.25rem; }
+
+.status { margin: 0.25rem 0 0.75rem 0; min-height: 1.25rem; }
+
+.table-wrapper {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: auto;
+  background: #fff;
+}
+
+table.timetable {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 720px;
+}
+
+thead th {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 2;
+  border-bottom: 2px solid var(--color-border);
+  text-align: left;
+  padding: 0.625rem;
+}
+
+tbody th[scope="row"], thead .time-col {
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 1;
+}
+
+thead th, tbody th, tbody td {
+  border-right: 1px solid var(--color-border);
+}
+
+tbody tr:not(:last-child) th,
+tbody tr:not(:last-child) td {
+  border-bottom: 1px solid var(--color-border);
+}
+
+tbody th[scope="row"] {
+  font-weight: 600;
+  padding: 0.5rem 0.625rem;
+  white-space: nowrap;
+}
+
+tbody td {
+  padding: 0.375rem;
+  vertical-align: top;
+  min-width: 180px;
+}
+
+.event {
+  color: #fff;
+  border-radius: 6px;
+  padding: 0.5rem 0.625rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+
+.event .title { font-weight: 700; display: block; }
+.event .meta { display: block; font-size: 0.9rem; opacity: 0.95; margin-top: 0.125rem; }
+.event .location { display: block; font-size: 0.9rem; opacity: 0.95; margin-top: 0.125rem; }
+
+.event.lecture { background: var(--color-lecture); }
+.event.seminar { background: var(--color-seminar); }
+.event.dissertation { background: var(--color-dissertation); }
+
+.event:focus, .event:hover {
+  outline: 2px solid rgba(255,255,255,0.9);
+  outline-offset: -2px;
+}
+
+.site-footer {
+  padding: 1rem 1.25rem 2rem;
+  color: #6c757d;
+}
+
+@media (max-width: 720px) {
+  .brand-text h1 { font-size: 1.1rem; }
+  .student-meta, .days-on-campus { font-size: 0.9rem; }
+  tbody td { min-width: 240px; }
+}
+
